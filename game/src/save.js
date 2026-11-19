@@ -1,24 +1,48 @@
-// Saving and loading: money, missions finished, the story, the player's place
-// and health and ammo live in localStorage, so the next visit picks up where
-// the last one ended. A save that cannot be read counts as no save at all.
+// localStorage save: money, health, ammo, missions and where the player stood.
+// The save is written on mission complete, on BUSTED / KNOCKED OUT and when
+// the player quits to the title, and offered as Continue on the title screen.
+import { SAVE_KEY } from './tune.js';
 
-import { BEST_KEY, SAVE_KEY } from './config.js';
-
-export function loadSave() {
+export function hasSave() {
   try {
-    const raw = window.localStorage.getItem(SAVE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
+    return window.localStorage.getItem(SAVE_KEY) !== null;
   } catch {
-    return null;
+    return false;
   }
 }
 
-export function writeSave(save) {
+export function saveGame(G) {
   try {
-    window.localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+    const data = {
+      v: 1,
+      money: G.money,
+      earned: G.earned,
+      health: G.health,
+      ammo: G.ammo,
+      reserve: G.reserve,
+      hasPistol: G.hasPistol,
+      missionsDone: G.missionsDone,
+      nextMission: G.nextMission,
+      x: Math.round(G.player.x),
+      y: Math.round(G.player.y),
+      time: Math.round(G.time),
+    };
+    window.localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    return true;
   } catch {
-    // Storage can be off (a private window): then progress lasts this visit only.
+    return false;
+  }
+}
+
+export function loadGame() {
+  try {
+    const raw = window.localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    if (!d || d.v !== 1) return null;
+    return d;
+  } catch {
+    return null;
   }
 }
 
@@ -26,22 +50,6 @@ export function clearSave() {
   try {
     window.localStorage.removeItem(SAVE_KEY);
   } catch {
-    // Nothing to clear.
-  }
-}
-
-export function readBest() {
-  try {
-    return Number.parseInt(window.localStorage.getItem(BEST_KEY) ?? '0', 10) || 0;
-  } catch {
-    return 0;
-  }
-}
-
-export function writeBest(value) {
-  try {
-    window.localStorage.setItem(BEST_KEY, String(value));
-  } catch {
-    // Best money then lasts this visit only.
+    // storage unavailable; the game still plays
   }
 }

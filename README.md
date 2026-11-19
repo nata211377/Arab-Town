@@ -1,63 +1,66 @@
 # Arab Town
 
-An original top-down 2D open-world crime game set in **Qamar City**, a sun-soaked
-desert-coast Arab city. Built for the make.fun bounty "Make GTA 6" (gta6-01).
-
-Drive, steal cars, run taxi fares, outrun the police — and finish all six story
-missions. Everything in it is original: the city, the characters, the vehicles,
-the story, the art and the sound. Nothing is taken from any commercial game.
+A sun-soaked open-world crime game set in Qamar City, a desert-coast Arab
+city of six districts — Old Souq, Marina, Palm Heights, Date Gardens, Port
+and Al-Bahr. Explore it on foot and by car, in the spirit of GTA Chinatown
+Wars, as an original game with its own city, characters and story.
 
 ## Play
 
-Open `game/index.html` in a desktop browser (serve the `game/` folder with any
-static server, e.g. `python3 -m http.server` from inside `game/`), or run
-`node serve.ts` from the kit. No network connection is needed: the game is
-plain static files, and all sound is synthesized with WebAudio.
+Open `game/index.html` in a desktop browser (or serve `game/` with any
+static file server). No network is needed; everything is local files and
+synthesized sound.
 
-## Controls
-
-| Key | Action |
-| --- | --- |
-| WASD / arrows | Move on foot, drive |
-| Shift | Run |
-| E | Get in / out of a car, use a shop |
-| Mouse + click | Aim and shoot the pistol |
-| F | Punch |
-| R | Reload |
-| Space | Confirm |
-| P / Esc | Pause |
-| M | Mute |
+- **WASD / arrows** — walk, or drive when in a car (W accelerate, S brake
+  and reverse, A/D steer, Space handbrake)
+- **E** — get in or out of a car, start a mission, buy ammo, repaint
+- **Mouse** — aim; **click** shoots the pistol, **F** punches, **R** reloads
+- **P / Esc** — pause; **Q** on the pause screen saves and quits to title
+- **M** — mute
 
 ## The city
 
-Qamar City has six districts — the Old Souq, the Marina, Palm Heights, Date
-Gardens, the Port and Al-Bahr — joined by a road grid along the western sea
-and the southern desert dunes. Traffic drives the roads, people stroll the
-sidewalks, and the police answer a five-star wanted level with cars and
-officers on foot. At four stars and above the screen edges pulse red while
-the whole city hunts you.
+- Six districts with their own ground, colours and landmarks, a road grid,
+  a harbour and the Port's container yards
+- Traffic cars and pedestrians on the streets; cars can be stolen (E)
+- A wanted level of 0–5 stars: steal, shoot or run someone over and the
+  police come after you. Get caught on foot and you are BUSTED — fined and
+  sent to the clinic. Lose the heat at Qamar Customs (repaint, $200) or by
+  lying low.
+- Combat: pistol with a magazine and reserve ammo, and a punch
+- Money: mission rewards ($150–$800), taxi fares when driving a cab, cash
+  pickups, health and ammo pickups, an ammo shop and a repaint garage
+- Six story missions with dialogue: Rashid, Layla and Omar against the Sand
+  Vipers — a taxi homecoming, a police escape, a timed delivery, a dockside
+  shootout, a car-theft job and a finale at the Vipers' hideout
+- HUD with health, money, wanted stars, ammo, speedometer and a minimap
+  with mission, police and shop blips; title, pause, BUSTED and KNOCKED OUT
+  screens; progress saves to localStorage automatically
 
-## The story
+## Structure
 
-1. **Welcome Home** — Rashid's taxi, and a spice run to the Souq.
-2. **The Package** — a delivery from the Port to Palm Heights, on the clock.
-3. **Night Shift** — three taxi fares across town.
-4. **The Debt** — chase Omar's coupe and collect what he owes.
-5. **Dockside Trouble** — a shootout with the Sand Vipers at the Port.
-6. **The Getaway** — steal the white sports car at the Marina and lose the police.
+`game/src/` is one small module per job:
 
-Progress (money, missions, the story) saves itself to localStorage, and again
-the moment a mission is finished.
+| file | job |
+| --- | --- |
+| `rng.js` | seeded random numbers (the city is deterministic per seed) |
+| `tune.js` | world size, roads, districts, places, prices |
+| `state.js` | the whole game state in one object |
+| `city.js` | city generation and collision geometry |
+| `sfx.js` | synthesized WebAudio sound (engine, siren, shots, coins) |
+| `keys.js` | keyboard and mouse input |
+| `walker.js` | the player on foot, shooting, punching, bullets |
+| `driver.js` | cars: the player, traffic, police, pedestrians |
+| `wanted.js` | the wanted level, police response, BUSTED / KNOCKED OUT |
+| `jobs.js` | the six missions, dialogue and rival AI |
+| `economy.js` | pickups, taxi fares, ammo shop, repaint garage |
+| `paint.js` | all drawing: city, cars, HUD, minimap, screens |
+| `save.js` | localStorage save and load |
+| `stage.js` | the playtest staging handle (`window.__arab`) |
+| `boot.js` | wiring and the game loop |
 
-## Layout
-
-- `game/index.html` — the page; `game/src/` holds the game's own source, one
-  job per file: `config.js`, `city.js`, `traffic.js`, `police.js`,
-  `missions.js`, `world.js`, `render.js`, `audio.js`, `input.js`, `save.js`,
-  `shots.js`, `random.js`, `main.js`.
-- `screenshots/` — four real renders of the game running in a browser.
-- `main.ts` + `vendor/makefun-game.ts` — the make.fun hand-in program and its
-  library (from the competition kit).
+`main.ts` (Node 22) copies `game/` and `screenshots/` to the output
+directory and writes `dossier.json` with the kit's `buildDossier`.
 
 ## License
 
