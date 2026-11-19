@@ -1,7 +1,7 @@
-// The wanted system and the police: stars rise with crimes and fall when the player
-// stays unseen; police cars chase and ram, officers on foot chase and catch. A wanted
-// level of zero means the city is calm; five means every unit in Qamar City is after
-// the player.
+// The wanted system and the police: stars rise with crimes and fall when the
+// player stays unseen; police cars chase and ram, officers on foot chase and
+// catch. Wanted zero means the city is calm; five means every unit in Qamar
+// City is after the player.
 
 import { CAR, WANTED } from './config.js';
 import { pick } from './random.js';
@@ -13,7 +13,7 @@ export function createPolice(city, random) {
   const officers = [];
   let wanted = 0;
   let decayTimer = 0;
-  let seenTimer = 0;
+  let unseenTimer = 0;
 
   function addWanted(amount) {
     const before = wanted;
@@ -27,6 +27,7 @@ export function createPolice(city, random) {
     officers.length = 0;
   }
 
+  /** A road point near the player, but not on top of them. */
   function spawnPointNear(x, y, minDist) {
     for (let tries = 0; tries < 12; tries += 1) {
       const point = city.randomRoadPoint();
@@ -60,6 +61,7 @@ export function createPolice(city, random) {
     });
   }
 
+  /** Steer a police car toward the player and drive it; returns the distance. */
   function stepCar(car, dt, ctx) {
     const dx = ctx.player.x - car.x;
     const dy = ctx.player.y - car.y;
@@ -77,6 +79,7 @@ export function createPolice(city, random) {
       car.stuck += dt;
       car.heading += (random() - 0.5) * 3 * dt + (car.stuck > 1 ? Math.PI * dt : 0);
       if (car.stuck > 2.5) {
+        // Too stuck to be useful: reappear further out on the road.
         const point = spawnPointNear(ctx.player.x, ctx.player.y, 500);
         car.x = point.x;
         car.y = point.y;
@@ -92,6 +95,7 @@ export function createPolice(city, random) {
     return dist;
   }
 
+  /** Run an officer toward the player on foot; returns the distance. */
   function stepOfficer(officer, dt, ctx) {
     const dx = ctx.player.x - officer.x;
     const dy = ctx.player.y - officer.y;
@@ -131,16 +135,16 @@ export function createPolice(city, random) {
 
     // Seen recently? The wanted level only decays while no police is close.
     if (nearest < 420) {
-      seenTimer = 0;
+      unseenTimer = 0;
       decayTimer = 0;
     } else {
-      seenTimer += dt;
-      if (wanted > 0 && seenTimer > 6) {
+      unseenTimer += dt;
+      if (wanted > 0 && unseenTimer > 6) {
         decayTimer += dt;
         if (decayTimer >= WANTED.decaySeconds) {
           wanted -= 1;
           decayTimer = 0;
-          seenTimer = 0;
+          unseenTimer = 0;
         }
       }
     }

@@ -1,8 +1,9 @@
-// Arab Town's rules and state, with no drawing in it: the player on foot and behind
-// the wheel, drivable cars, bullets, rivals, cash and health pickups, the taxi side
-// job, the repaint garage and the workshop, crimes and the wanted level, and the
-// mission engine that drives the story. step() advances one fixed step and returns
-// what happened as bit flags, so the caller can react with sound and banners.
+// Arab Town's rules and state, with no drawing in it: the player on foot and
+// behind the wheel, drivable cars, bullets, rivals, cash and health pickups,
+// the taxi side job, the repaint garage and the workshop, crimes and the
+// wanted level, and the mission engine that drives the story. step() advances
+// one fixed step and returns what happened as bit flags, so the caller can
+// react with sound and banners.
 
 import { CAR, CITY, MONEY, PISTOL, PLAYER, REPAINT, SAFEHOUSE, STEP, WANTED, WORKSHOP, WORLD } from './config.js';
 import { createCity } from './city.js';
@@ -22,7 +23,7 @@ export const EVENT_COIN = 64;
 export const EVENT_PICKUP = 128;
 export const EVENT_WANTED_UP = 256;
 
-function circleRect(cx, cy, r, rect) {
+function circleHitsRect(cx, cy, r, rect) {
   const nx = Math.max(rect.x, Math.min(cx, rect.x + rect.w));
   const ny = Math.max(rect.y, Math.min(cy, rect.y + rect.h));
   const dx = cx - nx;
@@ -69,8 +70,8 @@ export function createWorld(random, audio) {
     chaseHits: 0,
   };
 
+  /** Parked on the roads, never inside a block: a car must be drivable from its spot. */
   function spawnParkedCars() {
-    // Parked on the roads, never inside a block: a car must be drivable from its spot.
     const spots = [
       { x: 640, y: 700, kind: 'taxi', color: CAR.taxiColor, model: 'Taxi' },
       { x: 700, y: 240, kind: 'civil', color: '#c0392b', model: 'Sedan' },
@@ -219,6 +220,63 @@ export function createWorld(random, audio) {
     return 0;
   }
 
+  function driveCar(dt, input) {
+    const car = player.inCar;
+    const axis = input.axis();
+    // Arcade car physics: speed along the heading, steering that bites with speed.
+    if (axis.y < 0) car.speed += CAR.accel * dt;
+    else if (axis.y > 0) {
+      if (car.speed > 30) car.speed -= CAR.brake * dt;
+      else car.speed -= CAR.reverseAccel * dt;
+    } else {
+      car.speed -= car.speed * CAR.drag * dt;
+      if (Math.abs(car.speed) < 4) car.speed = 0;
+    }
+    car.speed = Math.max(-CAR.maxReverse, Math.min(CAR.maxSpeed, car.speed));
+    // Steering bites even from a stop, so a parked car can turn onto the road.
+    const steerAuthority = Math.min(1, 0.35 + Math.abs(car.speed) / 200);
+    const steerDir = car.speed >= 0 ? 1 : -1;
+    car.heading += axis.x * CAR.steer * steerAuthority * steerDir * dt;
+    const nx = car.x + Math.cos(car.heading) * car.speed * dt;
+    const ny = car.y + Math.sin(car.heading) * car.speed * dt;
+    if (city.blocked(nx, ny, 20)) {
+      const hitSpeed = Math.abs(car.speed);
+      car.speed *= -0.25;
+      if (hitSpeed > 200) return EVENT_CRASH;
+    } else {
+      car.x = nx;
+      car.y = ny;
+    }
+    car.x = Math.max(180, Math.min(WORLD.width - 10, car.x));
+    car.y = Math.max(10, Math.min(WORLD.height - 10, car.y));
+    player.x = car.x;
+    player.y = car.y;
+    player.heading = car.heading;
+    audio.engine(car.speed, CAR.maxSpeed);
+    return 0;
+  }
+
+  function walkPlayer(dt, input, aimAngle) {
+    audio.engineOff();
+    const speed = input.running ? PLAYER.runSpeed : PLAYER.walkSpeed;
+    const axis = input.axis();
+    let vx = axis.x * speed;
+    let vy = axis.y * speed;
+    if (vx !== 0 && vy !== 0) { vx *= 0.7071; vy *= 0.7071; }
+    const pos = city.collide(player.x + vx * dt, player.y + vy * dt, PLAYER.radius);
+    player.x = pos.x;
+    player.y = pos.y;
+    if (vx !== 0 || vy !== 0) {
+      player.heading = Math.atan2(vy, vx);
+      player.stepTimer -= dt * Math.hypot(vx, vy) / 60;
+      if (player.stepTimer <= 0) {
+        player.stepTimer = 1;
+        audio.step();
+      }
+    }
+    if (player.hasPistol) player.heading = aimAngle;
+  }
+
   function stepPlayer(dt, input, aimAngle) {
     if (player.punchCooldown > 0) player.punchCooldown -= dt;
     if (player.shootCooldown > 0) player.shootCooldown -= dt;
@@ -233,59 +291,8 @@ export function createWorld(random, audio) {
         player.reserveAmmo -= take;
       }
     }
-
-    const axis = input.axis();
-    if (player.inCar) {
-      const car = player.inCar;
-      // Arcade car physics: speed along the heading, steering that bites with speed.
-      if (axis.y < 0) car.speed += CAR.accel * dt;
-      else if (axis.y > 0) {
-        if (car.speed > 30) car.speed -= CAR.brake * dt;
-        else car.speed -= CAR.reverseAccel * dt;
-      } else {
-        car.speed -= car.speed * CAR.drag * dt;
-        if (Math.abs(car.speed) < 4) car.speed = 0;
-      }
-      car.speed = Math.max(-CAR.maxReverse, Math.min(CAR.maxSpeed, car.speed));
-      // Steering bites even from a stop, so a parked car can turn onto the road.
-      const steerAuthority = Math.min(1, 0.35 + Math.abs(car.speed) / 200);
-      const steerDir = car.speed >= 0 ? 1 : -1;
-      car.heading += axis.x * CAR.steer * steerAuthority * steerDir * dt;
-      const nx = car.x + Math.cos(car.heading) * car.speed * dt;
-      const ny = car.y + Math.sin(car.heading) * car.speed * dt;
-      if (city.blocked(nx, ny, 20)) {
-        const hitSpeed = Math.abs(car.speed);
-        car.speed *= -0.25;
-        if (hitSpeed > 200) return EVENT_CRASH;
-      } else {
-        car.x = nx;
-        car.y = ny;
-      }
-      car.x = Math.max(180, Math.min(WORLD.width - 10, car.x));
-      car.y = Math.max(10, Math.min(WORLD.height - 10, car.y));
-      player.x = car.x;
-      player.y = car.y;
-      player.heading = car.heading;
-      audio.engine(car.speed, CAR.maxSpeed);
-    } else {
-      audio.engineOff();
-      const speed = input.running ? PLAYER.runSpeed : PLAYER.walkSpeed;
-      let vx = axis.x * speed;
-      let vy = axis.y * speed;
-      if (vx !== 0 && vy !== 0) { vx *= 0.7071; vy *= 0.7071; }
-      const pos = city.collide(player.x + vx * dt, player.y + vy * dt, PLAYER.radius);
-      player.x = pos.x;
-      player.y = pos.y;
-      if (vx !== 0 || vy !== 0) {
-        player.heading = Math.atan2(vy, vx);
-        player.stepTimer -= dt * Math.hypot(vx, vy) / 60;
-        if (player.stepTimer <= 0) {
-          player.stepTimer = 1;
-          audio.step();
-        }
-      }
-      if (player.hasPistol) player.heading = aimAngle;
-    }
+    if (player.inCar) return driveCar(dt, input);
+    walkPlayer(dt, input, aimAngle);
     return 0;
   }
 
@@ -550,6 +557,7 @@ export function createWorld(random, audio) {
     return 0;
   }
 
+  /** What the mission engine may call on the world. */
   function missionCtx() {
     return {
       player,
@@ -673,8 +681,7 @@ export function createWorld(random, audio) {
       danger: state.danger,
     };
     traffic.step(dt, ctx);
-    const policeEvents = police.step(dt, { player: { x: player.x, y: player.y, inCar: !!player.inCar } });
-    events |= policeEvents;
+    events |= police.step(dt, { player: { x: player.x, y: player.y, inCar: !!player.inCar } });
 
     // Police cars ram the player's car; on foot they catch the player.
     if (player.inCar) {

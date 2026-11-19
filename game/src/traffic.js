@@ -1,6 +1,7 @@
-// Traffic and pedestrians: cars that drive the road grid in their lanes, slowing for
-// the car ahead, and people who stroll the sidewalks and run from gunfire and speeding
-// cars. Both are pure state and movement; the world owns collisions and crimes.
+// Traffic and pedestrians: cars that drive the road grid in their lanes,
+// slowing for the car ahead, and people who stroll the sidewalks and run from
+// gunfire and speeding cars. Both are pure state and movement; the world owns
+// collisions and crimes.
 
 import { CAR, LANE, ROADS_X, ROADS_Y, TRAFFIC, WORLD } from './config.js';
 import { pick, range } from './random.js';
@@ -45,12 +46,14 @@ export function createTraffic(city, random) {
   for (let i = 0; i < TRAFFIC.maxCars; i += 1) spawnCar();
   for (let i = 0; i < TRAFFIC.maxPeds; i += 1) spawnPed();
 
+  /** How far a lane sits from its road's centreline, for this axis and direction. */
   function laneOffset(axis, dir) {
     if (axis === 'h') return dir === 1 ? LANE : -LANE;
     return dir === 1 ? -LANE : LANE;
   }
 
-  function atIntersection(car) {
+  /** The crossing road's centreline, when the car is at an intersection, else null. */
+  function crossingAt(car) {
     if (car.axis === 'h') {
       for (const x of ROADS_X) if (Math.abs(car.x - x) < 14) return x;
     } else {
@@ -61,18 +64,17 @@ export function createTraffic(city, random) {
 
   function stepCar(car, dt, ctx) {
     // Ease back to the lane centre after a turn.
-    const target = car.axis === 'h' ? car.road + laneOffset('h', car.dir) : car.road + laneOffset('v', car.dir);
-    if (car.axis === 'h') car.y += (target - car.y) * Math.min(1, dt * 4);
-    else car.x += (target - car.x) * Math.min(1, dt * 4);
+    const laneCentre = car.axis === 'h' ? car.road + laneOffset('h', car.dir) : car.road + laneOffset('v', car.dir);
+    if (car.axis === 'h') car.y += (laneCentre - car.y) * Math.min(1, dt * 4);
+    else car.x += (laneCentre - car.x) * Math.min(1, dt * 4);
 
     // Slow for the car ahead in the same lane, and for the player's car.
     let want = car.speed;
-    const ahead = car.axis === 'h' ? 76 : 76;
     for (const other of cars) {
       if (other === car || other.axis !== car.axis || other.dir !== car.dir) continue;
       if (Math.abs((car.axis === 'h' ? other.y : other.x) - (car.axis === 'h' ? car.y : car.x)) > 30) continue;
       const gap = (car.axis === 'h' ? (other.x - car.x) * car.dir : (other.y - car.y) * car.dir);
-      if (gap > 0 && gap < ahead) want = Math.min(want, Math.max(0, (gap - 46) * 2));
+      if (gap > 0 && gap < 76) want = Math.min(want, Math.max(0, (gap - 46) * 2));
     }
     if (ctx.playerCar) {
       const dx = ctx.playerCar.x - car.x;
@@ -89,12 +91,10 @@ export function createTraffic(city, random) {
     if (car.axis === 'h') car.x += car.dir * speed * dt;
     else car.y += car.dir * speed * dt;
 
-    // Turn at intersections, sometimes.
-    const cross = atIntersection(car);
+    // Turn at an intersection, sometimes, onto the crossing road.
+    const cross = crossingAt(car);
     if (cross !== null && random() < dt * 0.9) {
-      if (car.axis === 'h' && ROADS_Y.includes(cross) === false) {
-        // not a crossing road
-      } else if (car.axis === 'h') {
+      if (car.axis === 'h') {
         car.axis = 'v';
         car.road = cross;
         car.dir = random() < 0.5 ? 1 : -1;

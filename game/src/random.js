@@ -1,22 +1,23 @@
-// A small seeded random number generator (mulberry32): the same seed gives the same
-// city, the same traffic and the same screenshot scenes, every time.
+// A tiny seeded random generator (mulberry32). One seed always grows the same
+// city, the same traffic and the same screenshot scenes, run after run.
 
+/** A function that returns the next pseudo-random number in [0, 1). */
 export function createRandom(seed) {
-  let a = seed | 0;
+  let state = seed | 0;
   return function random() {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
 
-/** Pick one item from an array with the seeded random. */
+/** One item from an array, chosen with the seeded random. */
 export function pick(random, array) {
   return array[Math.floor(random() * array.length)];
 }
 
-/** A random number between min and max. */
+/** A number between min and max, chosen with the seeded random. */
 export function range(random, min, max) {
   return min + random() * (max - min);
 }

@@ -4,8 +4,8 @@
 // knocked-out screens; progress saves itself to localStorage.
 //
 // ?seed=N fixes the city and the traffic. ?shot=start|drive|chase|mission (with
-// &seed=N) stages that scene instead of running the loop, paints it twice and sets
-// window.__shotReady for a screenshot.
+// &seed=N) stages that scene instead of running the loop, paints it twice and
+// sets window.__shotReady for a screenshot.
 
 import { STEP, VIEW } from './config.js';
 import { createRandom } from './random.js';
@@ -96,6 +96,34 @@ function aimAngle() {
   return Math.atan2(wy - world.player.y, wx - world.player.x);
 }
 
+/** Route a finished step's events: busted, wasted, mission done or failed. */
+function handleEvents(events) {
+  if (events & EVENT_BUSTED) {
+    if (world.missions.active) {
+      pendingMission = world.missions.missionIndex;
+      world.missions.reset();
+    }
+    world.state.bustedCount += 1;
+    endRun(SCREEN_BUSTED, 'Caught by the police.');
+  } else if (events & EVENT_WASTED) {
+    if (world.missions.active) {
+      pendingMission = world.missions.missionIndex;
+      world.missions.reset();
+    }
+    world.state.wastedCount += 1;
+    endRun(SCREEN_WASTED, 'Knocked out.');
+  } else if (events & EVENT_MISSION_DONE) {
+    pendingMission = world.state.storyDone ? -1 : world.missions.nextMissionIndex();
+    saveProgress();
+  } else if (events & EVENT_MISSION_FAILED) {
+    pendingMission = world.missions.missionIndex;
+    world.missions.reset();
+    world.state.banner = 'Mission failed — press Enter to retry.';
+    world.state.bannerTimer = 5;
+  }
+  if (events & EVENT_CRASH) audio.crash();
+}
+
 function frame(now) {
   requestAnimationFrame(frame);
   const frameDt = Math.min((now - last) / 1000, MAX_FRAME);
@@ -142,29 +170,7 @@ function frame(now) {
     const aim = aimAngle();
     while (accumulator >= STEP && screen === SCREEN_PLAY) {
       const events = world.step(STEP, input, aim, actions);
-      if (events & EVENT_BUSTED) {
-        if (world.missions.active) {
-          pendingMission = world.missions.missionIndex;
-          world.missions.reset();
-        }
-        world.state.bustedCount += 1;
-        endRun(SCREEN_BUSTED, 'Caught by the police.');
-      } else if (events & EVENT_WASTED) {
-        if (world.missions.active) {
-          pendingMission = world.missions.missionIndex;
-          world.missions.reset();
-        }
-        world.state.wastedCount += 1;
-        endRun(SCREEN_WASTED, 'Knocked out.');
-      } else if (events & EVENT_MISSION_DONE) {
-        pendingMission = world.state.storyDone ? -1 : world.missions.nextMissionIndex();
-      } else if (events & EVENT_MISSION_FAILED) {
-        pendingMission = world.missions.missionIndex;
-        world.missions.reset();
-        world.state.banner = 'Mission failed — press Enter to retry.';
-        world.state.bannerTimer = 5;
-      }
-      if (events & EVENT_CRASH) audio.crash();
+      handleEvents(events);
       accumulator -= STEP;
     }
     saveTimer -= frameDt;

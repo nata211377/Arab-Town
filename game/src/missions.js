@@ -1,8 +1,9 @@
-// The story of Arab Town: six missions from Uncle Rashid, Layla and the streets of
-// Qamar City, each a list of steps the engine walks through — go somewhere, pick
-// something up, drive a taxi shift, chase a debtor's car, survive a dockside
-// shootout, steal a sports car and outrun the police to the safehouse. The engine
-// owns the mission state; the world owns the cars, rivals and crimes it calls for.
+// The story of Arab Town: six missions from Uncle Rashid, Layla and the
+// streets of Qamar City. Each mission is a list of steps the engine walks
+// through — go somewhere, pick something up, drive a taxi shift, chase a
+// debtor's car, survive a dockside shootout, steal a sports car and outrun
+// the police to the safehouse. The engine owns the mission state; the world
+// owns the cars, rivals and crimes it calls for.
 
 export const MISSIONS = [
   {
@@ -120,6 +121,7 @@ export function createMissions() {
   let dialogueTimer = 0;
   let taxiPhase = 'pickup';
   let chaseHits = 0;
+  let chaseTargetFn = null;
   let collectAt = null;
   let hideTimer = 0;
   let active = false;
@@ -129,11 +131,12 @@ export function createMissions() {
     return missionIndex >= 0 && missionIndex < MISSIONS.length ? MISSIONS[missionIndex] : null;
   }
 
-  function step() {
+  function currentStep() {
     const m = mission();
     return m ? m.steps[stepIndex] : null;
   }
 
+  /** Play the mission's intro lines and set up what it needs. */
   function start(index, ctx) {
     missionIndex = index;
     stepIndex = 0;
@@ -141,6 +144,7 @@ export function createMissions() {
     chaseHits = 0;
     collectAt = null;
     taxiPhase = 'pickup';
+    hideTimer = 0;
     active = true;
     finished = false;
     const m = mission();
@@ -163,6 +167,7 @@ export function createMissions() {
     }
   }
 
+  /** Finish the current step; on the last step, pay out and close the mission. */
   function completeStep(ctx) {
     const m = mission();
     stepIndex += 1;
@@ -179,89 +184,104 @@ export function createMissions() {
     return 'step';
   }
 
-  /** The current objective marker: where the player must go, or null. */
+  /** Where the objective marker points, or null when nothing is active. */
   function target() {
-    const s = step();
+    const s = currentStep();
     if (!s || !active) return null;
-    if (s.kind === 'chase') return ctxChaseTarget();
+    if (s.kind === 'chase') return chaseTargetFn ? chaseTargetFn() : null;
     if (s.kind === 'collect') return collectAt ? { x: collectAt.x, y: collectAt.y, radius: s.radius } : null;
     if (s.kind === 'taxi') {
       if (taxiPhase === 'pickup') return { x: s.x, y: s.y, radius: 70 };
       return { x: s.dx, y: s.dy, radius: 80 };
     }
     if (s.kind === 'shootout') return { x: s.x, y: s.y, radius: s.radius || 90 };
-    if (s.kind === 'enterCar') return { x: s.x, y: s.y, radius: s.radius };
-    if (s.kind === 'steal') return { x: s.x, y: s.y, radius: s.radius };
+    if (s.kind === 'enterCar' || s.kind === 'steal') return { x: s.x, y: s.y, radius: s.radius };
     return { x: s.x, y: s.y, radius: s.radius || 70 };
   }
 
-  let chaseTargetFn = null;
-  function ctxChaseTarget() {
-    return chaseTargetFn ? chaseTargetFn() : null;
+  /** One step's completion test, by kind. Returns 'completed', 'step' or null. */
+  function checkStep(s, ctx, dt) {
+    const px = ctx.player.x;
+    const py = ctx.player.y;
+    const dist = (x, y) => Math.hypot(px - x, py - y);
+
+    switch (s.kind) {
+      case 'goto':
+      case 'pickup': {
+        if (s.needCar && !ctx.player.inCar) return null;
+        if (dist(s.x, s.y) < s.radius) {
+          if (s.kind === 'pickup') ctx.playPickup();
+          return completeStep(ctx);
+        }
+        return null;
+      }
+      case 'enterCar': {
+        if (ctx.player.inCar && dist(s.x, s.y) < 220) return completeStep(ctx);
+        return null;
+      }
+      case 'taxi': {
+        if (!ctx.player.inCar) return null;
+        if (taxiPhase === 'pickup') {
+          if (dist(s.x, s.y) < 70) {
+            taxiPhase = 'dropoff';
+            ctx.playPickup();
+            ctx.addMoney(15);
+          }
+        } else if (dist(s.dx, s.dy) < 80) {
+          taxiPhase = 'pickup';
+          ctx.addMoney(20);
+          return completeStep(ctx);
+        }
+        return null;
+      }
+      case 'chase': {
+        if (ctx.chaseHits() >= s.hits) {
+          collectAt = ctx.chaseCarPos();
+          return completeStep(ctx);
+        }
+        return null;
+      }
+      case 'collect': {
+        if (collectAt && dist(collectAt.x, collectAt.y) < s.radius) return completeStep(ctx);
+        return null;
+      }
+      case 'shootout': {
+        if (ctx.rivalsLeft() === 0) return completeStep(ctx);
+        return null;
+      }
+      case 'steal': {
+        if (ctx.player.inCar && ctx.playerCarIs('getaway')) return completeStep(ctx);
+        return null;
+      }
+      case 'escape': {
+        if (dist(s.x, s.y) < s.radius) {
+          // Hiding at the safehouse shakes the police: stay put for 5 seconds.
+          hideTimer += dt;
+          if (hideTimer >= 5) {
+            ctx.clearWanted();
+            return completeStep(ctx);
+          }
+        } else {
+          hideTimer = 0;
+        }
+        return null;
+      }
+      default:
+        return null;
+    }
   }
 
   function stepUpdate(dt, ctx) {
-    let event = null;
     if (dialogue.length > 0) {
       dialogueTimer += dt;
       if (dialogueTimer > 5) advanceDialogue();
     }
     if (!active) return null;
-    const s = step();
+    const s = currentStep();
     if (!s) return null;
     stepTimer += dt;
     if (s.timeLimit && stepTimer > s.timeLimit) return 'failed';
-
-    const px = ctx.player.x;
-    const py = ctx.player.y;
-    const dist = (x, y) => Math.hypot(px - x, py - y);
-
-    if (s.kind === 'goto' || s.kind === 'pickup') {
-      if (s.needCar && !ctx.player.inCar) return null;
-      if (dist(s.x, s.y) < s.radius) {
-        if (s.kind === 'pickup') ctx.playPickup();
-        event = completeStep(ctx);
-      }
-    } else if (s.kind === 'enterCar') {
-      if (ctx.player.inCar && dist(s.x, s.y) < 220) event = completeStep(ctx);
-    } else if (s.kind === 'taxi') {
-      if (!ctx.player.inCar) return null;
-      if (taxiPhase === 'pickup') {
-        if (dist(s.x, s.y) < 70) {
-          taxiPhase = 'dropoff';
-          ctx.playPickup();
-          ctx.addMoney(15);
-        }
-      } else if (dist(s.dx, s.dy) < 80) {
-        taxiPhase = 'pickup';
-        ctx.addMoney(20);
-        event = completeStep(ctx);
-      }
-    } else if (s.kind === 'chase') {
-      const hits = ctx.chaseHits();
-      if (hits >= s.hits) {
-        collectAt = ctx.chaseCarPos();
-        event = completeStep(ctx);
-      }
-    } else if (s.kind === 'collect') {
-      if (collectAt && dist(collectAt.x, collectAt.y) < s.radius) event = completeStep(ctx);
-    } else if (s.kind === 'shootout') {
-      if (ctx.rivalsLeft() === 0) event = completeStep(ctx);
-    } else if (s.kind === 'steal') {
-      if (ctx.player.inCar && ctx.playerCarIs('getaway')) event = completeStep(ctx);
-    } else if (s.kind === 'escape') {
-      if (dist(s.x, s.y) < s.radius) {
-        // Hiding at the safehouse shakes the police: stay put for 5 seconds.
-        hideTimer += dt;
-        if (hideTimer >= 5) {
-          ctx.clearWanted();
-          event = completeStep(ctx);
-        }
-      } else {
-        hideTimer = 0;
-      }
-    }
-    return event;
+    return checkStep(s, ctx, dt);
   }
 
   return {
@@ -270,7 +290,7 @@ export function createMissions() {
     get finished() { return finished; },
     get dialogue() { return dialogue.length > 0 ? dialogue[dialogueIndex] : null; },
     get current() { return mission(); },
-    get step() { return step(); },
+    get step() { return currentStep(); },
     get stepTimer() { return stepTimer; },
     get taxiPhase() { return taxiPhase; },
     get chaseHits() { return chaseHits; },

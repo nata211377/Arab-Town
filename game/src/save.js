@@ -1,6 +1,6 @@
-// Saving and loading: progress (money, missions finished, the story, the player's
-// place and health, ammo) is kept in localStorage, so a visit can be picked up
-// where the last one ended. A save that cannot be read is treated as no save.
+// Saving and loading: money, missions finished, the story, the player's place
+// and health and ammo live in localStorage, so the next visit picks up where
+// the last one ended. A save that cannot be read counts as no save at all.
 
 import { BEST_KEY, SAVE_KEY } from './config.js';
 
@@ -18,7 +18,7 @@ export function writeSave(save) {
   try {
     window.localStorage.setItem(SAVE_KEY, JSON.stringify(save));
   } catch {
-    // Storage can be off (private windows): progress then lasts this visit only.
+    // Storage can be off (a private window): then progress lasts this visit only.
   }
 }
 

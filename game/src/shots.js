@@ -1,8 +1,8 @@
-// The screenshot scenes behind ?shot=start|drive|chase|mission. Each one plays the
-// real rules forward from a fresh world for a fixed number of seconds, steered by a
-// simple autopilot (follow the road, chase the nearest rival, keep the pedal down),
-// so the frame is what a short game really looks like and the same seed always
-// gives the same frame. The screenshots are real renders of the game's own code.
+// The screenshot scenes behind ?shot=start|drive|chase|mission. Each one plays
+// the real rules forward from a fresh world for a fixed number of seconds,
+// steered by a simple autopilot (follow the road, keep the pedal down), so the
+// frame is what a short game really looks like and the same seed always gives
+// the same frame. The screenshots are real renders of the game's own code.
 
 import { STEP } from './config.js';
 import { SCREEN_PLAY, SCREEN_TITLE } from './render.js';
@@ -22,8 +22,10 @@ function noActions() {
 }
 
 /**
- * Drive a car through waypoints: aim at the current one, take the next when close.
- * Waypoints keep the car on the roads instead of cutting across blocks.
+ * Drive a car through waypoints: aim at the current one, take the next when
+ * close. Waypoints keep the car on the roads instead of cutting across blocks.
+ * The drive ends when the car reaches the last waypoint, so the camera is
+ * centred on it instead of chasing it past the frame.
  */
 function driveWaypoints(world, waypoints, seconds) {
   let wp = 0;
@@ -31,6 +33,7 @@ function driveWaypoints(world, waypoints, seconds) {
     const car = world.player.inCar;
     if (!car) break;
     while (wp < waypoints.length - 1 && Math.hypot(waypoints[wp].x - car.x, waypoints[wp].y - car.y) < 70) wp += 1;
+    if (wp === waypoints.length - 1 && Math.hypot(waypoints[wp].x - car.x, waypoints[wp].y - car.y) < 70) break;
     const target = waypoints[Math.min(wp, waypoints.length - 1)];
     const desired = Math.atan2(target.y - car.y, target.x - car.x);
     let error = desired - car.heading;
@@ -39,6 +42,16 @@ function driveWaypoints(world, waypoints, seconds) {
     const steer = Math.max(-1, Math.min(1, error * 2.5));
     world.step(SAMPLE, fakeInput({ x: steer, y: -1 }), 0, noActions());
   }
+}
+
+/** Put the player in a car that is parked in the world. */
+function putPlayerInCar(world, car, heading) {
+  world.player.x = car.x;
+  world.player.y = car.y;
+  world.player.inCar = car;
+  world.vehicles.splice(world.vehicles.indexOf(car), 1);
+  world.player.heading = heading;
+  car.heading = heading;
 }
 
 export function stageShot(name, world) {
@@ -56,28 +69,21 @@ export function stageShot(name, world) {
   }
 
   if (name === 'drive') {
-    // The player takes the garage taxi down Souq Street, through traffic.
+    // The player takes the garage taxi down Souq Street, through traffic,
+    // ending mid-road so the camera frames the car and the street.
     const taxi = world.vehicles.find((v) => v.kind === 'taxi');
-    world.player.x = taxi.x;
-    world.player.y = taxi.y;
-    world.player.inCar = taxi;
-    world.vehicles.splice(world.vehicles.indexOf(taxi), 1);
-    taxi.heading = Math.PI / 2;
-    world.player.heading = Math.PI / 2;
-    driveWaypoints(world, [{ x: 640, y: 880 }, { x: 2100, y: 880 }], 6);
+    putPlayerInCar(world, taxi, Math.PI / 2);
+    driveWaypoints(world, [{ x: 640, y: 880 }, { x: 1200, y: 880 }, { x: 1900, y: 880 }], 6);
     return { screen: SCREEN_PLAY, best: 0 };
   }
 
   if (name === 'chase') {
-    // Three stars: the player flees west down Palm Avenue in a sports car, police behind.
+    // Five stars: the player flees west down Palm Avenue in a sports car,
+    // the whole force of Qamar City behind.
     world.vehicles.push({ x: 2000, y: 880, heading: Math.PI, speed: 0, color: '#f5f5f5', model: 'Sports', kind: 'getaway', health: 100 });
     const car = world.vehicles[world.vehicles.length - 1];
-    world.player.x = car.x;
-    world.player.y = car.y;
-    world.player.inCar = car;
-    world.vehicles.splice(world.vehicles.indexOf(car), 1);
-    world.player.heading = Math.PI;
-    world.police.addWanted(3);
+    putPlayerInCar(world, car, Math.PI);
+    world.police.addWanted(5);
     driveWaypoints(world, [{ x: 1200, y: 880 }, { x: 500, y: 880 }], 3.5);
     return { screen: SCREEN_PLAY, best: 0 };
   }
@@ -97,7 +103,7 @@ export function stageShot(name, world) {
       const d = Math.hypot(e.x - world.player.x, e.y - world.player.y);
       if (d < nearestD) { nearestD = d; nearest = e; }
     }
-    // Aim at the nearest rival, with a shooter's spread, so the fight is still on.
+    // Aim at the nearest rival, with a shooter's spread, so the fight is on.
     if (nearest) aim = Math.atan2(nearest.y - world.player.y, nearest.x - world.player.x) + (Math.sin(i * 2.3) * 0.16);
     world.step(SAMPLE, fakeInput({ x: 0, y: 0 }), aim, { enter: false, shootHeld: true, punch: false, reload: false });
   }

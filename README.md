@@ -34,7 +34,8 @@ Qamar City has six districts — the Old Souq, the Marina, Palm Heights, Date
 Gardens, the Port and Al-Bahr — joined by a road grid along the western sea
 and the southern desert dunes. Traffic drives the roads, people stroll the
 sidewalks, and the police answer a five-star wanted level with cars and
-officers on foot.
+officers on foot. At four stars and above the screen edges pulse red while
+the whole city hunts you.
 
 ## The story
 
@@ -45,7 +46,8 @@ officers on foot.
 5. **Dockside Trouble** — a shootout with the Sand Vipers at the Port.
 6. **The Getaway** — steal the white sports car at the Marina and lose the police.
 
-Progress (money, missions, the story) saves itself to localStorage.
+Progress (money, missions, the story) saves itself to localStorage, and again
+the moment a mission is finished.
 
 ## Layout
 

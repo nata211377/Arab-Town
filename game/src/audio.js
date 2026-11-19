@@ -1,7 +1,7 @@
-// Every sound in Arab Town is synthesized with WebAudio: no audio files, no network,
-// just oscillators and filtered noise shaped into an engine hum, a siren, gunshots,
-// coins, crashes and footsteps. The audio context starts on the first key or click,
-// as browsers require, and a mute key (M) silences it.
+// Every sound in Arab Town is made with WebAudio: no audio files, no network,
+// just oscillators and filtered noise shaped into an engine hum, a siren,
+// gunshots, coins, crashes and footsteps. The audio context starts on the
+// first key or click, as browsers require; M mutes everything.
 
 export function createAudio() {
   let context = null;
@@ -32,15 +32,15 @@ export function createAudio() {
     return true;
   }
 
-  /** A short tone that slides from one frequency to another. */
-  function tone(freqFrom, freqTo, seconds, type, volume, when = 0) {
+  /** A short tone sliding from one frequency to another. */
+  function tone(from, to, seconds, type, volume, delay = 0) {
     if (!ensure() || muted) return;
-    const start = context.currentTime + when;
+    const start = context.currentTime + delay;
     const osc = context.createOscillator();
     const gain = context.createGain();
     osc.type = type;
-    osc.frequency.setValueAtTime(freqFrom, start);
-    osc.frequency.exponentialRampToValueAtTime(Math.max(1, freqTo), start + seconds);
+    osc.frequency.setValueAtTime(from, start);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(1, to), start + seconds);
     gain.gain.setValueAtTime(volume, start);
     gain.gain.exponentialRampToValueAtTime(0.001, start + seconds);
     osc.connect(gain);
@@ -49,10 +49,10 @@ export function createAudio() {
     osc.stop(start + seconds + 0.02);
   }
 
-  /** A burst of filtered noise, for shots, crashes and footsteps. */
-  function noise(seconds, filterFreq, volume, type = 'lowpass', when = 0) {
+  /** A burst of filtered noise: shots, crashes, footsteps. */
+  function noise(seconds, filterFreq, volume, type = 'lowpass', delay = 0) {
     if (!ensure() || muted) return;
-    const start = context.currentTime + when;
+    const start = context.currentTime + delay;
     const length = Math.max(1, Math.floor(context.sampleRate * seconds));
     const buffer = context.createBuffer(1, length, context.sampleRate);
     const data = buffer.getChannelData(0);
@@ -100,6 +100,13 @@ export function createAudio() {
     engineGain = null;
   }
 
+  function stopSiren() {
+    if (!sirenOsc) return;
+    try { sirenOsc.stop(); } catch { /* already stopped */ }
+    sirenOsc = null;
+    sirenGain = null;
+  }
+
   return {
     unlock() { ensure(); },
     get muted() { return muted; },
@@ -107,7 +114,7 @@ export function createAudio() {
       muted = !muted;
       if (muted) {
         stopEngine();
-        this.stopSiren();
+        stopSiren();
       }
       return muted;
     },
@@ -137,9 +144,9 @@ export function createAudio() {
     },
     engineOff() { stopEngine(); },
 
-    /** The police siren: two alternating tones while any police car is near. */
+    /** The police siren: two alternating tones while a police car is near. */
     siren(on) {
-      if (!on) { this.stopSiren(); return; }
+      if (!on) { stopSiren(); return; }
       if (!ensure() || muted) return;
       if (!sirenOsc) {
         sirenOsc = context.createOscillator();
@@ -163,11 +170,6 @@ export function createAudio() {
         sirenOsc.frequency.setTargetAtTime(sirenHigh ? 700 : 950, context.currentTime, 0.02);
       }
     },
-    stopSiren() {
-      if (!sirenOsc) return;
-      try { sirenOsc.stop(); } catch { /* already stopped */ }
-      sirenOsc = null;
-      sirenGain = null;
-    },
+    stopSiren() { stopSiren(); },
   };
 }

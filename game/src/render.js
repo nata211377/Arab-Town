@@ -31,12 +31,11 @@ export function createRenderer(canvas) {
       && y > cam.y - VIEW.height / 2 - margin && y < cam.y + VIEW.height / 2 + margin;
   }
 
-  function drawCity(world) {
+  function drawGround(world) {
     const cam = world.camera;
     const x0 = cam.x - VIEW.width / 2;
     const y0 = cam.y - VIEW.height / 2;
-
-    // Ground: sand everywhere, greener in the gardens, dunes in the south.
+    // Sand everywhere, greener in the gardens, dunes in the south.
     ctx.fillStyle = PALETTE.sand;
     ctx.fillRect(x0, y0, VIEW.width, VIEW.height);
     // Sea on the west.
@@ -62,8 +61,10 @@ export function createRenderer(canvas) {
         ctx.fill();
       }
     }
+  }
 
-    // Roads and sidewalks.
+  function drawRoads(world) {
+    const cam = world.camera;
     for (const road of world.city.roads) {
       if (!inView(road.x + road.w / 2, road.y + road.h / 2, cam, 120)) continue;
       ctx.fillStyle = PALETTE.sidewalk;
@@ -78,8 +79,10 @@ export function createRenderer(canvas) {
         for (let y = road.y + 10; y < road.y + road.h - 10; y += 46) ctx.fillRect(road.x + road.w / 2 - 2, y, 4, 26);
       }
     }
+  }
 
-    // Buildings: shadow, walls, roof, dome and rooftop tank.
+  function drawBuildings(world) {
+    const cam = world.camera;
     for (const b of world.city.buildings) {
       if (!inView(b.x + b.w / 2, b.y + b.h / 2, cam, 60)) continue;
       ctx.fillStyle = 'rgba(0,0,0,0.18)';
@@ -108,7 +111,10 @@ export function createRenderer(canvas) {
         ctx.fill();
       }
     }
+  }
 
+  function drawProps(world) {
+    const cam = world.camera;
     // Market stalls, containers, fountains, palms, rocks, lamps.
     for (const s of world.city.stalls) {
       if (!inView(s.x, s.y, cam, 40)) continue;
@@ -166,12 +172,6 @@ export function createRenderer(canvas) {
       ctx.arc(lamp.x, lamp.y, 3, 0, Math.PI * 2);
       ctx.fill();
     }
-
-    // Named places: the garage, the safehouse, the repaint shop, the workshop.
-    drawPlace(world.city.garage.x, world.city.garage.y, 'GARAGE', cam);
-    drawPlace(world.city.safehouse.x, world.city.safehouse.y, 'HOME', cam);
-    drawPlace(world.city.repaint.x, world.city.repaint.y, 'PAINT', cam);
-    drawPlace(world.city.workshop.x, world.city.workshop.y, 'AMMO', cam);
   }
 
   function drawPlace(x, y, label, cam) {
@@ -184,6 +184,19 @@ export function createRenderer(canvas) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(label, x, y - 23);
+  }
+
+  function drawCity(world) {
+    drawGround(world);
+    drawRoads(world);
+    drawBuildings(world);
+    drawProps(world);
+    // Named places: the garage, the safehouse, the repaint shop, the workshop.
+    const cam = world.camera;
+    drawPlace(world.city.garage.x, world.city.garage.y, 'GARAGE', cam);
+    drawPlace(world.city.safehouse.x, world.city.safehouse.y, 'HOME', cam);
+    drawPlace(world.city.repaint.x, world.city.repaint.y, 'PAINT', cam);
+    drawPlace(world.city.workshop.x, world.city.workshop.y, 'AMMO', cam);
   }
 
   function drawCar(x, y, heading, color, model, lights, time) {
@@ -439,7 +452,7 @@ export function createRenderer(canvas) {
     ctx.fillStyle = '#d9c48f';
     ctx.fillRect(MINIMAP.x, MINIMAP.y, MINIMAP.w, MINIMAP.h);
     ctx.fillStyle = '#2f7fa8';
-    ctx.fillRect(MINIMAP.x, MINIMAP.y, (SEA_X - 0) * scale, MINIMAP.h);
+    ctx.fillRect(MINIMAP.x, MINIMAP.y, SEA_X * scale, MINIMAP.h);
     ctx.fillStyle = '#3d3a38';
     for (const road of world.city.roads) {
       ctx.fillRect(MINIMAP.x + road.x * scale, MINIMAP.y + road.y * scale, Math.max(2, road.w * scale), Math.max(2, road.h * scale));
@@ -483,9 +496,35 @@ export function createRenderer(canvas) {
     ctx.fillText(world.city.districtAt(p.x, p.y), MINIMAP.x, MINIMAP.y + MINIMAP.h + 14);
   }
 
-  function drawHud(world, ui) {
+  function wrapText(text, x, y, maxWidth, lineHeight) {
+    const words = text.split(' ');
+    let line = '';
+    let cy = y;
+    for (const word of words) {
+      const test = line ? line + ' ' + word : word;
+      if (ctx.measureText(test).width > maxWidth && line) {
+        ctx.fillText(line, x, cy);
+        line = word;
+        cy += lineHeight;
+      } else {
+        line = test;
+      }
+    }
+    if (line) ctx.fillText(line, x, cy);
+  }
+
+  function drawHud(world, ui, time) {
     const p = world.player;
     const st = world.state;
+    // A red edge pulse when the whole city is after the player.
+    if (world.police.wanted >= 4) {
+      const alpha = 0.10 + 0.08 * Math.sin(time * 5);
+      ctx.fillStyle = `rgba(229,83,75,${alpha})`;
+      ctx.fillRect(0, 0, VIEW.width, 10);
+      ctx.fillRect(0, VIEW.height - 10, VIEW.width, 10);
+      ctx.fillRect(0, 0, 10, VIEW.height);
+      ctx.fillRect(VIEW.width - 10, 0, 10, VIEW.height);
+    }
     // Top-left: health, money, wanted stars, ammo.
     ctx.fillStyle = 'rgba(20,16,12,0.72)';
     roundRect(ctx, 12, 12, 250, 86, 10);
@@ -614,23 +653,6 @@ export function createRenderer(canvas) {
     }
   }
 
-  function wrapText(text, x, y, maxWidth, lineHeight) {
-    const words = text.split(' ');
-    let line = '';
-    let cy = y;
-    for (const word of words) {
-      const test = line ? line + ' ' + word : word;
-      if (ctx.measureText(test).width > maxWidth && line) {
-        ctx.fillText(line, x, cy);
-        line = word;
-        cy += lineHeight;
-      } else {
-        line = test;
-      }
-    }
-    if (line) ctx.fillText(line, x, cy);
-  }
-
   function panel(text, sub, color) {
     ctx.fillStyle = 'rgba(10,8,6,0.72)';
     ctx.fillRect(0, 0, VIEW.width, VIEW.height);
@@ -646,14 +668,44 @@ export function createRenderer(canvas) {
     }
   }
 
+  function drawTitle(world, ui, time) {
+    ctx.fillStyle = 'rgba(10,8,6,0.55)';
+    ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+    ctx.fillStyle = PALETTE.gold;
+    ctx.font = 'bold 92px ' + FONT;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('ARAB TOWN', VIEW.width / 2, 190);
+    ctx.fillStyle = PALETTE.text;
+    ctx.font = '28px ' + FONT;
+    ctx.fillText('Qamar City — an open-world crime story', VIEW.width / 2, 250);
+    ctx.font = '18px ' + FONT;
+    ctx.fillStyle = PALETTE.muted;
+    ctx.fillText('Drive, steal, run fares, outrun the police — and finish all six missions.', VIEW.width / 2, 292);
+    ctx.fillStyle = PALETTE.text;
+    ctx.font = 'bold 22px ' + FONT;
+    const blink = Math.floor(time * 2) % 2 === 0;
+    if (blink) ctx.fillText('Press Enter or click to start', VIEW.width / 2, 380);
+    ctx.font = '15px ' + FONT;
+    ctx.fillStyle = PALETTE.muted;
+    ctx.fillText('WASD move / drive · Shift run · E enter car · Mouse aim, click shoot · F punch · R reload', VIEW.width / 2, 440);
+    ctx.fillText('P pause · M mute · progress saves automatically', VIEW.width / 2, 466);
+    if (ui.best > 0) {
+      ctx.fillStyle = PALETTE.gold;
+      ctx.font = 'bold 16px ' + FONT;
+      ctx.fillText('Most money held: $' + ui.best, VIEW.width / 2, 520);
+    }
+  }
+
   function draw(world, screen, ui, time) {
     ctx.clearRect(0, 0, VIEW.width, VIEW.height);
     ctx.save();
     const cam = world.camera;
     ctx.translate(-(cam.x - VIEW.width / 2), -(cam.y - VIEW.height / 2));
     drawCity(world);
-    if (screen !== SCREEN_TITLE) drawEntities(world, time);
-    else {
+    if (screen !== SCREEN_TITLE) {
+      drawEntities(world, time);
+    } else {
       // The title screen shows the city alive: traffic and people only.
       for (const t of world.traffic.cars) {
         const heading = t.axis === 'h' ? (t.dir === 1 ? 0 : Math.PI) : (t.dir === 1 ? Math.PI / 2 : -Math.PI / 2);
@@ -667,32 +719,7 @@ export function createRenderer(canvas) {
     ctx.restore();
 
     if (screen === SCREEN_TITLE) {
-      ctx.fillStyle = 'rgba(10,8,6,0.55)';
-      ctx.fillRect(0, 0, VIEW.width, VIEW.height);
-      ctx.fillStyle = PALETTE.gold;
-      ctx.font = 'bold 92px ' + FONT;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('ARAB TOWN', VIEW.width / 2, 190);
-      ctx.fillStyle = PALETTE.text;
-      ctx.font = '28px ' + FONT;
-      ctx.fillText('Qamar City — an open-world crime story', VIEW.width / 2, 250);
-      ctx.font = '18px ' + FONT;
-      ctx.fillStyle = PALETTE.muted;
-      ctx.fillText('Drive, steal, run fares, outrun the police — and finish all six missions.', VIEW.width / 2, 292);
-      ctx.fillStyle = PALETTE.text;
-      ctx.font = 'bold 22px ' + FONT;
-      const blink = Math.floor(time * 2) % 2 === 0;
-      if (blink) ctx.fillText('Press Enter or click to start', VIEW.width / 2, 380);
-      ctx.font = '15px ' + FONT;
-      ctx.fillStyle = PALETTE.muted;
-      ctx.fillText('WASD move / drive · Shift run · E enter car · Mouse aim, click shoot · F punch · R reload', VIEW.width / 2, 440);
-      ctx.fillText('P pause · M mute · progress saves automatically', VIEW.width / 2, 466);
-      if (ui.best > 0) {
-        ctx.fillStyle = PALETTE.gold;
-        ctx.font = 'bold 16px ' + FONT;
-        ctx.fillText('Most money held: $' + ui.best, VIEW.width / 2, 520);
-      }
+      drawTitle(world, ui, time);
       return;
     }
     if (screen === SCREEN_PAUSED) {
@@ -707,7 +734,7 @@ export function createRenderer(canvas) {
       panel('KNOCKED OUT', 'Press Enter to wake up at the safehouse.', PALETTE.healthLow);
       return;
     }
-    drawHud(world, ui);
+    drawHud(world, ui, time);
   }
 
   return { draw };

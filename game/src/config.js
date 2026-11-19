@@ -1,28 +1,30 @@
-// Arab Town — every tuning number, colour and city fact in one place.
-// The world is a fixed 2560 x 1920 open city; the renderer shows a 1280 x 720 window
-// of it, scaled to the screen, so no rule below depends on the display size.
+// Arab Town — every number that tunes the game lives here, in one place.
+// The world is a fixed 2560 x 1920 city. The camera shows a 1280 x 720 window
+// of it, scaled to fit the screen, so no value below depends on the display.
 
+/** The city is this many world units across and down. */
 export const WORLD = { width: 2560, height: 1920 };
 
-/** The simulation's fixed step, in seconds: 60 updates a second whatever the display rate. */
+/** One simulation step, in seconds: the world ticks 60 times a second. */
 export const STEP = 1 / 60;
 
-/** The camera's logical viewport, in world units. */
+/** The camera's logical window, in world units. */
 export const VIEW = { width: 1280, height: 720 };
 
-/** Sea on the west edge: water starts here (nothing drives or walks in it). */
+/** The sea starts here on the west edge; nothing walks or drives in it. */
 export const SEA_X = 170;
 
-/** South edge: desert dunes start here. */
+/** The desert dunes start here on the south edge. */
 export const DESERT_Y = 1780;
 
-/** Roads are drawn and driven on these centrelines; every road is two-way. */
+/** Centrelines of the two-way roads that cross the city. */
 export const ROADS_X = [320, 640, 960, 1280, 1600, 1920, 2240];
 export const ROADS_Y = [240, 560, 880, 1200, 1520, 1760];
+/** How wide a road is, and how far a lane sits from its centreline. */
 export const ROAD_WIDTH = 88;
 export const LANE = 22;
 
-/** The city of Qamar City: an original sun-soaked desert-coast Arab city. */
+/** Qamar City: an original sun-soaked desert-coast Arab city. */
 export const CITY = {
   name: 'Qamar City',
   districts: [
@@ -40,16 +42,16 @@ export const CITY = {
   ],
 };
 
-/** The player's starting place: Rashid's garage, on Souq Street. */
+/** Rashid's garage, where the player starts: on Souq Street. */
 export const GARAGE = { x: 520, y: 700 };
 
-/** The safehouse the player sleeps at: a small house in Palm Heights. */
+/** The safehouse the player sleeps at, a small house in Palm Heights. */
 export const SAFEHOUSE = { x: 2140, y: 420 };
 
-/** The repaint garage that clears a wanted level, for a fee. */
+/** The repaint garage: a new colour clears the wanted level, for a fee. */
 export const REPAINT = { x: 1500, y: 1060 };
 
-/** The ammo shop: Layla's workshop, where bullets and repairs are sold. */
+/** Layla's workshop: bullets and repairs are sold here. */
 export const WORKSHOP = { x: 860, y: 1060 };
 
 export const PLAYER = {
@@ -108,13 +110,13 @@ export const WANTED = {
   shootNearPolice: 1,
   killPed: 1,
   killPolice: 2,
-  /** Police cars and officers at each wanted level. */
+  /** Police cars and officers on foot at each wanted level. */
   policeCars: [0, 1, 2, 3, 3, 4],
   policeFoot: [0, 0, 1, 2, 3, 4],
   policeCarSpeed: 520,
   policeFootSpeed: 285,
   catchRadius: 26,
-  /** Dollars lost when caught. */
+  /** Dollars the police take when they catch the player. */
   bustFine: 120,
 };
 
@@ -162,6 +164,6 @@ export const PALETTE = {
 
 export const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 
-/** Where progress is kept between visits (this browser only). */
+/** localStorage keys for progress and best money (this browser only). */
 export const SAVE_KEY = 'arab-town.save.v1';
 export const BEST_KEY = 'arab-town.best.v1';

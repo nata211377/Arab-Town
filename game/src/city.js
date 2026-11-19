@@ -1,13 +1,18 @@
-// Qamar City, generated from one seed: a grid of two-way roads, blocks of sandstone
-// buildings with domes and rooftop tanks, a corniche along the western sea, market
-// stalls in the Old Souq, shipping containers at the Port, a fountain plaza in
-// Al-Bahr, and desert dunes along the south edge. The city never allocates after
-// creation; it hands out collision tests and road helpers to the rest of the game.
+// Qamar City, grown from one seed: a grid of two-way roads, blocks of sandstone
+// buildings with domes and rooftop tanks, a corniche along the western sea,
+// market stalls in the Old Souq, shipping containers at the Port, a fountain
+// plaza in Al-Bahr, and desert dunes along the south edge. The city never
+// allocates after creation; it hands out collision tests and road helpers.
 
 import { CITY, DESERT_Y, GARAGE, LANE, PALETTE, REPAINT, ROADS_X, ROADS_Y, ROAD_WIDTH, SAFEHOUSE, SEA_X, WORLD, WORKSHOP } from './config.js';
 import { pick, range } from './random.js';
 
 const SIDEWALK = 14;
+
+/** Does a circle of radius r at (x, y) overlap a rectangle? */
+function overlapsCircleRect(x, y, r, rect) {
+  return x + r > rect.x && x - r < rect.x + rect.w && y + r > rect.y && y - r < rect.y + rect.h;
+}
 
 export function createCity(random) {
   const buildings = [];
@@ -18,6 +23,7 @@ export function createCity(random) {
   const fountains = [];
   const lamps = [];
 
+  /** The road rectangles: one per horizontal and vertical centreline. */
   function roadRects() {
     const rects = [];
     for (const y of ROADS_Y) rects.push({ x: SEA_X, y: y - ROAD_WIDTH / 2, w: WORLD.width - SEA_X, h: ROAD_WIDTH });
@@ -51,63 +57,66 @@ export function createCity(random) {
   }
 
   function addBuilding(x, y, w, h) {
-    const dome = random() < 0.22;
     buildings.push({
       x, y, w, h,
       color: pick(random, PALETTE.building),
       roof: pick(random, PALETTE.roof),
-      dome,
+      dome: random() < 0.22,
       tank: random() < 0.5,
       shadow: 6 + random() * 10,
     });
   }
 
+  function fillSouq(block) {
+    for (let k = 0; k < 10; k += 1) {
+      stalls.push({
+        x: block.x + 20 + (k % 5) * ((block.w - 40) / 5),
+        y: block.y + 24 + Math.floor(k / 5) * ((block.h - 60) / 2),
+        w: 52, h: 34,
+        color: pick(random, ['#c0392b', '#d35400', '#27ae60', '#8e44ad', '#f39c12']),
+      });
+    }
+    addBuilding(block.x + block.w * 0.3, block.y + block.h * 0.62, block.w * 0.4, block.h * 0.28);
+  }
+
+  function fillPort(block) {
+    for (let k = 0; k < 8; k += 1) {
+      containers.push({
+        x: block.x + 14 + (k % 4) * 56,
+        y: block.y + 16 + Math.floor(k / 4) * 46,
+        w: 48, h: 36,
+        color: pick(random, ['#c0392b', '#2980b9', '#27ae60', '#e67e22']),
+      });
+    }
+  }
+
+  function fillPlaza(block) {
+    fountains.push({ x: block.x + block.w / 2, y: block.y + block.h / 2, r: 46 });
+    for (let k = 0; k < 6; k += 1) {
+      palms.push({ x: block.x + 30 + (k % 3) * ((block.w - 60) / 2), y: block.y + 30 + Math.floor(k / 3) * (block.h - 60), r: 7 });
+    }
+  }
+
   function fillBlock(block, i, j) {
-    // The souq block becomes market stalls; the port block containers; the plaza a fountain.
-    if (i === 1 && j === 2) {
-      for (let i = 0; i < 10; i += 1) {
-        stalls.push({
-          x: block.x + 20 + (i % 5) * ((block.w - 40) / 5),
-          y: block.y + 24 + Math.floor(i / 5) * ((block.h - 60) / 2),
-          w: 52, h: 34,
-          color: pick(random, ['#c0392b', '#d35400', '#27ae60', '#8e44ad', '#f39c12']),
-        });
-      }
-      addBuilding(block.x + block.w * 0.3, block.y + block.h * 0.62, block.w * 0.4, block.h * 0.28);
-      return;
-    }
-    if (i === 1 && j === 4) {
-      for (let i = 0; i < 8; i += 1) {
-        containers.push({
-          x: block.x + 14 + (i % 4) * 56,
-          y: block.y + 16 + Math.floor(i / 4) * 46,
-          w: 48, h: 36,
-          color: pick(random, ['#c0392b', '#2980b9', '#27ae60', '#e67e22']),
-        });
-      }
-      return;
-    }
-    if (i === 3 && j === 3) {
-      fountains.push({ x: block.x + block.w / 2, y: block.y + block.h / 2, r: 46 });
-      for (let i = 0; i < 6; i += 1) {
-        palms.push({ x: block.x + 30 + (i % 3) * ((block.w - 60) / 2), y: block.y + 30 + Math.floor(i / 3) * (block.h - 60), r: 7 });
-      }
-      return;
-    }
-    // Ordinary block: one to four buildings, split along the longer side.
+    // The souq block becomes market stalls, the port block containers,
+    // the plaza block a fountain; every other block gets buildings.
+    if (i === 1 && j === 2) { fillSouq(block); return; }
+    if (i === 1 && j === 4) { fillPort(block); return; }
+    if (i === 3 && j === 3) { fillPlaza(block); return; }
     const count = 1 + Math.floor(random() * 3);
     if (count === 1) {
       addBuilding(block.x + 8, block.y + 8, block.w - 16, block.h - 16);
       return;
     }
+    // Two or more buildings, split along the block's longer side.
     const vertical = block.w > block.h;
-    for (let i = 0; i < count; i += 1) {
+    for (let k = 0; k < count; k += 1) {
       if (vertical) {
         const w = (block.w - 16 - (count - 1) * 12) / count;
-        addBuilding(block.x + 8 + i * (w + 12), block.y + 8, w, block.h - 16);
+        addBuilding(block.x + 8 + k * (w + 12), block.y + 8, w, block.h - 16);
       } else {
         const h = (block.h - 16 - (count - 1) * 12) / count;
-        addBuilding(block.x + 8, block.y + 8 + i * (h + 12), block.w - 16, h);
+        addBuilding(block.x + 8, block.y + 8 + k * (h + 12), block.w - 16, h);
       }
     }
   }
@@ -123,13 +132,13 @@ export function createCity(random) {
   for (let y = 60; y < WORLD.height - 60; y += 130) {
     palms.push({ x: 210 + random() * 40, y: y + random() * 40, r: 7 });
   }
-  for (let i = 0; i < 40; i += 1) {
+  for (let k = 0; k < 40; k += 1) {
     const x = range(random, 1300, 2500);
     const y = range(random, 1300, 1720);
     if (!onRoad(x, y, 20)) palms.push({ x, y, r: 7 });
   }
-  // Desert rocks and dunes along the south edge.
-  for (let i = 0; i < 26; i += 1) {
+  // Desert rocks along the south edge.
+  for (let k = 0; k < 26; k += 1) {
     rocks.push({ x: range(random, 200, 2500), y: range(random, DESERT_Y + 20, WORLD.height - 20), r: 8 + random() * 16 });
   }
   // Street lamps at every intersection.
@@ -137,18 +146,12 @@ export function createCity(random) {
     for (const y of ROADS_Y) lamps.push({ x: x + ROAD_WIDTH / 2 + 8, y: y - ROAD_WIDTH / 2 - 8 });
   }
 
-  /** A point in the sea or in a building (or a rock) is solid for a circle of radius r. */
+  /** A point in the sea, in a building, or in a rock is solid for a circle of radius r. */
   function blocked(x, y, r) {
     if (x < SEA_X + r || x > WORLD.width - r || y < r || y > WORLD.height - r) return true;
-    for (const b of buildings) {
-      if (x + r > b.x && x - r < b.x + b.w && y + r > b.y && y - r < b.y + b.h) return true;
-    }
-    for (const c of containers) {
-      if (x + r > c.x && x - r < c.x + c.w && y + r > c.y && y - r < c.y + c.h) return true;
-    }
-    for (const s of stalls) {
-      if (x + r > s.x && x - r < s.x + s.w && y + r > s.y && y - r < s.y + s.h) return true;
-    }
+    for (const b of buildings) if (overlapsCircleRect(x, y, r, b)) return true;
+    for (const c of containers) if (overlapsCircleRect(x, y, r, c)) return true;
+    for (const s of stalls) if (overlapsCircleRect(x, y, r, s)) return true;
     for (const f of fountains) {
       const dx = x - f.x;
       const dy = y - f.y;
@@ -172,18 +175,20 @@ export function createCity(random) {
     if (blocked(nx, ny, r)) {
       // Still inside: push out along the smallest penetration axis.
       let best = null;
-      const shapes = [];
-      for (const b of buildings) shapes.push(b);
-      for (const c of containers) shapes.push(c);
-      for (const s of stalls) shapes.push(s);
+      const shapes = [...buildings, ...containers, ...stalls];
       for (const shape of shapes) {
-        if (nx + r > shape.x && nx - r < shape.x + shape.w && ny + r > shape.y && ny - r < shape.y + shape.h) {
-          const pushLeft = nx + r - shape.x;
-          const pushRight = shape.x + shape.w - (nx - r);
-          const pushUp = ny + r - shape.y;
-          const pushDown = shape.y + shape.h - (ny - r);
-          const min = Math.min(pushLeft, pushRight, pushUp, pushDown);
-          if (!best || min < best.d) best = { d: min, x: pushLeft === min ? -pushLeft : pushRight === min ? pushRight : 0, y: pushUp === min ? -pushUp : pushDown === min ? pushDown : 0 };
+        if (!overlapsCircleRect(nx, ny, r, shape)) continue;
+        const pushLeft = nx + r - shape.x;
+        const pushRight = shape.x + shape.w - (nx - r);
+        const pushUp = ny + r - shape.y;
+        const pushDown = shape.y + shape.h - (ny - r);
+        const min = Math.min(pushLeft, pushRight, pushUp, pushDown);
+        if (!best || min < best.d) {
+          best = {
+            d: min,
+            x: pushLeft === min ? -pushLeft : pushRight === min ? pushRight : 0,
+            y: pushUp === min ? -pushUp : pushDown === min ? pushDown : 0,
+          };
         }
       }
       if (best) {
