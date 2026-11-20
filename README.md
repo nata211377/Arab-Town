@@ -1,5 +1,9 @@
 # Arab Town
 
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/nata211377/Arab-Town/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/nata211377/Arab-Town/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+
 A sun-soaked open-world crime game set in Qamar City, a desert-coast Arab
 city of six districts — Old Souq, Marina, Palm Heights, Date Gardens, Port
 and Al-Bahr. Explore it on foot and by car, in the spirit of GTA Chinatown
